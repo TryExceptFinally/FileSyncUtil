@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from src.config import Config
 from src.database import DatabaseConnector
-from src.exceptions import DBExecuteQueryError, RemoveFileError
+from src.exceptions import DBExecuteQueryError, RemoveFileError, CopyFileError
 from src.logger import configure_logging
 from src.utils import remove_file, copy_file
 
@@ -93,16 +93,16 @@ if __name__ == '__main__':
                     )
                     logger.info(f'Файл успешно перемещен: {path_from} -> {path_to}')
 
+                except CopyFileError as e:
+                    logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
+                    continue
+
                 except DBExecuteQueryError as e:
                     logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {e}')
                     try:
                         remove_file(path_to)
                     except RemoveFileError as e:
                         logger.error(f'Не удалось удалить скопированный файл: {path_to}. Ошибка: {e}')
-                    continue
-
-                except Exception as e:
-                    logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
                     continue
 
                 try:
