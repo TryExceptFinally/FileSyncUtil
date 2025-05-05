@@ -1,13 +1,16 @@
 import logging
 import os
-import shutil
-from datetime import datetime, timedelta
+
+from datetime import datetime
+from time import sleep
 
 from src.config import Config
 from src.database import DatabaseConnector
-from src.exceptions import DBExecuteQueryError, RemoveFileError, CopyFileError
+from src.exceptions import DBExecuteQueryError, RemoveFileError, CopyFileError, ConfigError
 from src.logger import configure_logging
-from src.utils import remove_file, copy_file
+from src.service import get_volume_path, update_image, get_image_name_by_uid, get_image_uid_by_name
+from src.utils import remove_file, copy_file, scan_directory, matches_date_pattern, \
+    extract_image_uid_from_name, extract_rel_path_from_abs_path
 
 # Считываю конфиг
 config = Config('config.ini').read()
@@ -26,86 +29,92 @@ db_connector = DatabaseConnector(
 
 logger = logging.getLogger(__name__)
 
-if __name__ == '__main__':
-    with db_connector as db:
-        volume_from_path = db.execute(
-            f"""select share_path 
-            from shares 
-            where share_uid='{config.volume_from}'"""
-        ).fetchone()[0].strip()
-        volume_to_path = db.execute(
-            f"""select share_path 
-            from shares 
-            where share_uid='{config.volume_to}'"""
-        ).fetchone()[0].strip()
 
-        max_date = db.execute(
-            f"""select study_addition_datetime 
-            from studies 
-            order by study_addition_datetime desc 
-            limit 1"""
-        ).fetchone()[0]
-        min_date = db.execute(
-            f"""select study_addition_datetime 
-            from studies 
-            order by study_addition_datetime asc 
-            limit 1"""
-        ).fetchone()[0]
+def main(volume_from_path: str, volume_to_path: str) -> None:
+    volume_from_dirs = scan_directory(
+        volume_from_path,
+        exclude_files=True,
+        name_filter=lambda name: matches_date_pattern(name, config.move_older_days),
+    )
 
-        end_date = datetime.now() - timedelta(days=0)
-        start_date = min_date
+    if not volume_from_dirs:
+        logger.info('Не найдено исследований для переноса.')
+        return
 
-        if start_date > end_date:
-            print('Нет исследований для перемещения')
-            exit()
+    for v_dir in volume_from_dirs:
+        dir_files = scan_directory(
+            v_dir.path,
+            exclude_dirs=True,
+        )
+        for d_file in dir_files:
+            image_uid = extract_image_uid_from_name(d_file.name)
+            if not image_uid:
+                logger.error(f'Файл {d_file.path} не содержит image_uid.')
+                continue
 
-        delta = end_date - start_date
+            image_name = get_image_name_by_uid(db_connector, image_uid)
 
-        for i in range(delta.days + 1):
-            date = start_date + timedelta(days=i)
-            date_str = date.strftime('%Y-%m-%d')
-            print('Копирую дату:', date_str)
-            images = db.execute(
-                f"""select image_path 
-                from images 
-                where share_uid='{config.volume_from}' 
-                and image_path like '{date_str}%'"""
-            ).fetchall()
-            for image in images:
-                image_path = image[0].strip()
-                path_from = str(os.path.join(volume_from_path, image_path))
-                path_to = str(os.path.join(volume_to_path, image_path))
+            if not image_name:
+                image_uid = get_image_uid_by_name(db_connector, d_file.name)
 
-                if not os.path.exists(path_from):
-                    logger.error(f'Файл отсутствует: {path_from}')
-                    continue
+            if not image_uid:
+                logger.error(f'Файл {d_file.path} не найден в БД.')
+                continue
 
-                if os.path.exists(path_to):
-                    logger.warning(f'Копируемый файл уже существует: {path_to}')
+            image_rel_path = extract_rel_path_from_abs_path(
+                base_path=volume_from_path, abs_path=d_file.path)
 
+            path_from = d_file.path
+            path_to = str(os.path.join(volume_to_path, image_rel_path))
+
+            if not os.path.exists(path_from):
+                logger.error(f'Файл {path_from} отсутствует.')
+                continue
+
+            try:
+                copy_file(path_from, path_to)
+                update_image(
+                    db_connector, image_uid=image_uid, share_uid=config.volume_to, image_path=path_to)
+                logger.info(f'Файл успешно перенесен: {path_from} -> {path_to}')
+
+            except CopyFileError as e:
+                logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
+                continue
+
+            except DBExecuteQueryError as e:
+                logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {e}')
                 try:
-                    copy_file(path_from, path_to)
-                    db.execute(
-                        f"""update images 
-                        set share_uid='{config.volume_to}' 
-                        where image_path='{image_path}' 
-                        and share_uid='{config.volume_from}'"""
-                    )
-                    logger.info(f'Файл успешно перемещен: {path_from} -> {path_to}')
-
-                except CopyFileError as e:
-                    logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
-                    continue
-
-                except DBExecuteQueryError as e:
-                    logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {e}')
-                    try:
-                        remove_file(path_to)
-                    except RemoveFileError as e:
-                        logger.error(f'Не удалось удалить скопированный файл: {path_to}. Ошибка: {e}')
-                    continue
-
-                try:
-                    remove_file(path_from)
+                    remove_file(path_to)
                 except RemoveFileError as e:
-                    logger.error(f'Не удалось удалить изначальный файл: {path_from}. Ошибка: {e}')
+                    logger.error(f'Не удалось удалить скопированный файл: {path_to}. Ошибка: {e}')
+                continue
+
+            try:
+                remove_file(path_from)
+            except RemoveFileError as e:
+                logger.error(f'Не удалось удалить изначальный файл: {path_from}. Ошибка: {e}')
+
+
+if __name__ == '__main__':
+    _volume_from_path = get_volume_path(db_connector, config.volume_from)
+    if not _volume_from_path:
+        logger.error(f'Не удалось найти том с uid={config.volume_from}')
+        raise ConfigError()
+    _volume_from_path = _volume_from_path.strip()
+
+    _volume_to_path = get_volume_path(db_connector, config.volume_to)
+    if not _volume_to_path:
+        logger.error(f'Не удалось найти том с uid={config.volume_to}')
+        raise ConfigError()
+    _volume_to_path = _volume_to_path.strip()
+
+    try:
+        _start_time = datetime.strptime(config.start_time, '%H:%M').time()
+    except ValueError as e:
+        logger.error(f'Не удалось получить время из: {config.start_time}. Нужный формат: %H:%M')
+        raise ConfigError()
+
+    while True:
+        if _start_time == datetime.now().time().replace(second=0, microsecond=0):
+            main(_volume_from_path, _volume_to_path)
+        sleep(60)

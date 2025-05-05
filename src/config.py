@@ -8,7 +8,7 @@ from src.logger import LogLevels
 class ConfigData:
     # Options
     start_time: str
-    move_after_days: int
+    move_older_days: int
     volume_from: int
     volume_to: int
     log_level: LogLevels
@@ -33,8 +33,8 @@ class Config:
         return ConfigData(
             # Options
             log_level=self.config.get('Options', 'log_level', fallback=LogLevels.info),
-            start_time=self.config.get('Options', 'start_date', fallback='00:00'),
-            move_after_days=self.config.getint('Options', 'move_after_days', fallback=30),
+            start_time=self.config.get('Options', 'start_time', fallback='00:00'),
+            move_older_days=self.config.getint('Options', 'move_older_days', fallback=30),
             volume_from=self.config.getint('Options', 'volume_from'),
             volume_to=self.config.getint('Options', 'volume_to'),
             # Database

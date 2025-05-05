@@ -8,3 +8,7 @@ class RemoveFileError(Exception):
 
 class CopyFileError(Exception):
     """Ошибка копирования файла"""
+
+
+class ConfigError(Exception):
+    """Ошибка конфигурации"""
