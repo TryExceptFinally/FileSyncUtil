@@ -96,8 +96,8 @@ def move_images(
 
             path_from = d_file.path
 
-            logger.debug(f'Получение абсолютного пути для файла.'
-                         f'volume_from_path={volume_from_path}, image_rel_path={image_rel_path}.')
+            logger.debug(f'Получение абсолютного пути для файла. '
+                         f'volume_to_path={volume_to_path}, image_rel_path={image_rel_path}.')
             path_to = str(os.path.join(volume_to_path, image_rel_path))
 
             if not os.path.exists(path_from):
