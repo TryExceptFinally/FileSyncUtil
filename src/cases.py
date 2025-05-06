@@ -112,20 +112,15 @@ def move_images(
                     db_connector, image_uid=image_uid, share_uid=volume_to, image_path=path_to)
                 logger.debug(f'Файл успешно скопирован: {path_from} -> {path_to}')
                 num_copied_files += 1
+                remove_file(path_from)
             except CopyFileError as err:
                 logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {err}')
-                continue
-
             except (DBConnectError, DBExecuteQueryError) as err:
                 logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
                 try:
                     remove_file(path_to)
                 except RemoveFileError as err:
                     logger.error(f'Не удалось удалить скопированный файл: {path_to}. Ошибка: {err}')
-                continue
-
-            try:
-                remove_file(path_from)
             except RemoveFileError as err:
                 logger.error(f'Не удалось удалить изначальный файл: {path_from}. Ошибка: {err}')
                 num_not_removed_files += 1
