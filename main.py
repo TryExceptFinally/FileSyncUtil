@@ -16,7 +16,11 @@ from src.utils import remove_file, copy_file, scan_directory, matches_date_patte
 config = Config('config.ini').read()
 
 # Конфигурирую логгинг
-configure_logging(config.log_level)
+main_path = os.path.dirname(__file__)
+configure_logging(
+    level=config.log_level,
+    filename=os.path.join(main_path, 'log.txt'),
+)
 
 # Конфигурирую подключение к БД
 db_connector = DatabaseConnector(

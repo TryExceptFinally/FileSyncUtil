@@ -10,11 +10,14 @@ class LogLevels(StrEnum):
     debug = 'DEBUG'
 
 
-def configure_logging(level: str):
+def configure_logging(level: str, filename: str):
     log_level = level.upper()
 
     if log_level not in LogLevels:
-        logging.basicConfig(level=LogLevels.info)
-        return
+        log_level = LogLevels.info
 
-    logging.basicConfig(level=log_level)
+    logging.basicConfig(
+        filename=filename,
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )

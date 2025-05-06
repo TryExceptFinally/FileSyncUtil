@@ -1,3 +1,7 @@
+class DBConnectError(Exception):
+    """Ошибка подключения к БД"""
+
+
 class DBExecuteQueryError(Exception):
     """Ошибка выполнения запроса"""
 

@@ -3,7 +3,7 @@ import logging
 import psycopg2
 from psycopg2._psycopg import cursor
 
-from src.exceptions import DBExecuteQueryError
+from src.exceptions import DBExecuteQueryError, DBConnectError
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,17 @@ class DatabaseConnector:
         self.cursor = None
 
     def __enter__(self):
-        self.conn = psycopg2.connect(
-            dbname=self.dbname,
-            user=self.user,
-            password=self.password,
-            host=self.host,
-            port=self.port
-        )
+        try:
+            self.conn = psycopg2.connect(
+                dbname=self.dbname,
+                user=self.user,
+                password=self.password,
+                host=self.host,
+                port=self.port
+            )
+        except psycopg2.OperationalError as e:
+            logger.error('Ошибка подключения к БД.')
+            raise DBConnectError(str(e))
         self.cursor = self.conn.cursor()
         return self
 
@@ -38,7 +42,7 @@ class DatabaseConnector:
             else:
                 self.conn.commit()
         except Exception as e:
-            logger.debug(f'Error executing query: {query} with params: {params}. Exception: {e}')
+            logger.debug(f'Ошибка выполнения запроса: {query} с параметрами: {params}. Исключение: {e}')
             self.conn.rollback()
             raise DBExecuteQueryError(e)
 
