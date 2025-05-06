@@ -29,7 +29,7 @@ class DatabaseConnector:
                 port=self.port
             )
         except psycopg2.OperationalError as e:
-            logger.error('Ошибка подключения к БД.')
+            logger.debug(f'Ошибка подключения к БД. Исключение: {e}')
             raise DBConnectError(str(e))
         self.cursor = self.conn.cursor()
         return self
@@ -44,7 +44,7 @@ class DatabaseConnector:
         except Exception as e:
             logger.debug(f'Ошибка выполнения запроса: {query} с параметрами: {params}. Исключение: {e}')
             self.conn.rollback()
-            raise DBExecuteQueryError(e)
+            raise DBExecuteQueryError(str(e))
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.cursor:
