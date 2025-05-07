@@ -109,7 +109,7 @@ def move_images(
             try:
                 copy_file(path_from, path_to)
                 update_image(
-                    db_connector, image_uid=image_uid, share_uid=volume_to, image_path=path_to)
+                    db_connector, image_uid=image_uid, share_uid=volume_to, image_path=image_rel_path)
                 logger.debug(f'Файл успешно скопирован: {path_from} -> {path_to}')
                 num_copied_files += 1
                 remove_file(path_from)
