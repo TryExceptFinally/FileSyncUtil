@@ -3,6 +3,7 @@ import os
 
 from datetime import datetime
 from dataclasses import dataclass
+from enum import StrEnum
 
 from src.exceptions import ConfigError
 from src.logger import LogLevels
@@ -25,6 +26,11 @@ class ConfigData:
     db_password: str
     db_host: str
     db_port: int
+
+
+class ConfigSection(StrEnum):
+    options = 'Options'
+    database = 'Database'
 
 
 class Config:
@@ -52,18 +58,18 @@ class Config:
 
         return ConfigData(
             # Options
-            log_level=self.config.get('Options', 'log_level', fallback=LogLevels.info),
-            start_time=self.get_time('Options', 'start_time', fallback='00:00'),
-            move_older_days=self.config.getint('Options', 'move_older_days', fallback=30),
-            dir_not_found=self.get_path('Options', 'dir_not_found'),
-            volume_from=self.config.getint('Options', 'volume_from'),
-            volume_to=self.config.getint('Options', 'volume_to'),
-            owner_name=self.config.get('Options', 'owner_name', fallback='makstor'),
-            group_name=self.config.get('Options', 'group_name', fallback='makhaon'),
+            log_level=self.config.get(ConfigSection.options, 'log_level', fallback=LogLevels.info),
+            start_time=self.get_time(ConfigSection.options, 'start_time', fallback='00:00'),
+            move_older_days=self.config.getint(ConfigSection.options, 'move_older_days', fallback=30),
+            dir_not_found=self.get_path(ConfigSection.options, 'dir_not_found'),
+            volume_from=self.config.getint(ConfigSection.options, 'volume_from'),
+            volume_to=self.config.getint(ConfigSection.options, 'volume_to'),
+            owner_name=self.config.get(ConfigSection.options, 'owner_name', fallback='makstor'),
+            group_name=self.config.get(ConfigSection.options, 'group_name', fallback='makhaon'),
             # Database
-            db_name=self.config.get('Database', 'name'),
-            db_user=self.config.get('Database', 'user'),
-            db_password=self.config.get('Database', 'password'),
-            db_host=self.config.get('Database', 'host'),
-            db_port=self.config.getint('Database', 'port'),
+            db_name=self.config.get(ConfigSection.database, 'name'),
+            db_user=self.config.get(ConfigSection.database, 'user'),
+            db_password=self.config.get(ConfigSection.database, 'password'),
+            db_host=self.config.get(ConfigSection.database, 'host'),
+            db_port=self.config.getint(ConfigSection.database, 'port'),
         )
