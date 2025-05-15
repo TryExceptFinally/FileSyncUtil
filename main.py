@@ -10,11 +10,12 @@ from src.database import DatabaseConnector
 from src.exceptions import ConfigError
 from src.logger import configure_logging
 
+main_path = os.path.dirname(__file__)
+
 # Считываю конфиг
 config = Config('config.ini').read()
 
 # Конфигурирую логгинг
-main_path = os.path.dirname(__file__)
 configure_logging(
     level=config.log_level,
     filename=os.path.join(main_path, 'log.txt'),

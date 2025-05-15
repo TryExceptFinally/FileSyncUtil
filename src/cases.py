@@ -2,10 +2,16 @@ import logging
 import os
 
 from src.database import DatabaseConnector
+from src.dicom.exceptions import DicomError
 from src.exceptions import CopyFileError, DBExecuteQueryError, RemoveFileError, DBConnectError
-from src.service import get_volume_path, get_image_name_by_uid, get_image_uid_by_name, update_image
-from src.utils import scan_directory, matches_date_pattern, extract_image_uid_from_name, extract_rel_path_from_abs_path, \
-    copy_file, remove_file
+from src.makstor.repository import MakstorRepository
+from src.dicom.service import DicomService
+
+from src.utils import (
+    scan_directory, matches_date_pattern,
+    extract_image_id_from_name, extract_rel_path_from_abs_path,
+    copy_file, remove_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +22,11 @@ def move_images(
     volume_to: int,
     move_older_days: int,
 ):
+    makstor_repository = MakstorRepository(db_connector)
+
     logger.debug(f'Получение путь до тома источника uid={volume_from}.')
     try:
-        volume_from_path = get_volume_path(db_connector, volume_from)
+        volume_from_path = makstor_repository.get_volume_path(volume_from)
     except (DBConnectError, DBExecuteQueryError) as err:
         logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
         return
@@ -29,8 +37,8 @@ def move_images(
 
     logger.debug(f'Получение путь до целевого тома uid={volume_to}.')
     try:
-        volume_to_path = get_volume_path(db_connector, volume_to)
-    except (DBConnectError, DBExecuteQueryError):
+        volume_to_path = makstor_repository.get_volume_path(volume_to)
+    except (DBConnectError, DBExecuteQueryError) as err:
         logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
         return
     if not volume_to_path:
@@ -71,28 +79,50 @@ def move_images(
         num_not_removed_files = 0
 
         for d_file in dir_files:
-            logger.debug(f'Извлечение uid из имени файла {d_file.name}')
-            image_uid = extract_image_uid_from_name(d_file.name)
-            if not image_uid:
-                logger.error(f'Файл {d_file.path} не содержит uid.')
-                continue
+            image = None
+            is_use_image_path_from_db = False
 
-            logger.debug(f'Запрос image из БД по uid={image_uid}')
-            image_name = get_image_name_by_uid(db_connector, image_uid)
+            logger.debug(f'Извлечение id из имени файла {d_file.name}.')
+            image_id_from_file = extract_image_id_from_name(d_file.name)
+            if image_id_from_file:
+                logger.debug(f'Запрос image по id={image_id_from_file} из БД.')
+                try:
+                    image = makstor_repository.get_image_by_id(image_id_from_file)
+                    if not image:
+                        logger.debug('Не удалось получить image по id из БД.')
+                except (DBConnectError, DBExecuteQueryError) as err:
+                    logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
+            else:
+                logger.debug('Не удалось извлечь id из имени файла.')
 
-            if not image_name:
-                logger.debug(f'Не удалось получить image из БД по uid. '
-                             f'Запрос image из БД по name={d_file.name}.')
-                image_uid = get_image_uid_by_name(db_connector, d_file.name)
+            if not image:
+                try:
+                    logger.debug(f'Извлечение uid из файла {d_file.name}.')
+                    image_uid = DicomService(d_file.path).get_image_uid()
+                    logger.debug(f'Запрос image по uid={image_uid}.')
+                    image = makstor_repository.get_image_by_uid(image_uid)
+                    if not image:
+                        logger.error(f'Не удалось найти image {d_file.path} в БД.')
+                        continue
+                    # В случае, если найден файл по uid использую отн. путь до файла из БД
+                    # чтобы избежать дубликатов на целевом томе
+                    is_use_image_path_from_db = True
+                except DicomError as err:
+                    logger.error(f'Не удалось получить uid из файла {d_file.name}. '
+                                 f'Ошибка: {err}')
+                except (DBConnectError, DBExecuteQueryError) as err:
+                    logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
 
-            if not image_uid:
-                logger.error(f'Файл {d_file.path} не найден в БД.')
-                continue
+            image_id = image[0]
 
-            logger.debug(f'Извлечение относительного пути из абсолютного. '
-                         f'base_path={volume_from_path}, abs_path={d_file.path}.')
-            image_rel_path = extract_rel_path_from_abs_path(
-                base_path=volume_from_path, abs_path=d_file.path)
+            if is_use_image_path_from_db:
+                logger.debug(f'Используется путь до файла из БД.')
+                image_rel_path = image[1]
+            else:
+                logger.debug(f'Извлечение относительного пути из абсолютного. '
+                             f'base_path={volume_from_path}, abs_path={d_file.path}.')
+                image_rel_path = extract_rel_path_from_abs_path(
+                    base_path=volume_from_path, abs_path=d_file.path)
 
             path_from = d_file.path
 
@@ -108,9 +138,9 @@ def move_images(
 
             try:
                 copy_file(path_from, path_to)
-                update_image(
-                    db_connector, image_uid=image_uid, share_uid=volume_to, image_path=image_rel_path)
-                logger.debug(f'Файл успешно скопирован: {path_from} -> {path_to}')
+                makstor_repository.update_image(
+                    image_id=image_id, share_uid=volume_to, image_path=image_rel_path)
+                logger.info(f'Файл успешно скопирован: {path_from} -> {path_to}.')
                 num_copied_files += 1
                 remove_file(path_from)
             except CopyFileError as err:

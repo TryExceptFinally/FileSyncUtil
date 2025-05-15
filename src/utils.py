@@ -15,7 +15,7 @@ def extract_rel_path_from_abs_path(base_path: str, abs_path: str) -> str:
     return abs_path.replace(base_path, '').lstrip('/')
 
 
-def extract_image_uid_from_name(name: str) -> int | None:
+def extract_image_id_from_name(name: str) -> int | None:
     pattern = r'\d+'
 
     uid = re.search(pattern, name)
