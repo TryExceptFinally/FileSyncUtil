@@ -2,6 +2,8 @@ import logging
 import os
 import re
 import shutil
+import pwd
+import grp
 
 from datetime import datetime, timedelta
 from typing import Callable
@@ -81,10 +83,26 @@ def remove_file(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]):
         raise RemoveFileError(e)
 
 
-def copy_file(path_from: str, path_to: str):
+def copy_file(path_from: str, path_to: str, uid: int, gid: int):
+    """Копирует файл в папку (создает если нет) и устанавливает владельца и группу"""
+    path_to_dir = os.path.dirname(path_to)
     try:
-        os.makedirs(os.path.dirname(path_to), exist_ok=True)
-        shutil.copy2(str(path_from), str(path_to))
+        if not os.path.exists(path_to_dir) or not os.path.isdir(path_to_dir):
+            os.makedirs(path_to_dir, exist_ok=True)
+            os.chown(path_to_dir, uid, gid)
+        shutil.copy2(path_from, path_to)
+        os.chown(path_to, uid, gid)
     except Exception as e:
         logger.debug(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
         raise CopyFileError(e)
+
+
+def get_uid_gid(owner_name: str, group_name: str) -> tuple[int | None, int | None]:
+    """Получает UID и GID с помощью имени владельца и группы"""
+    try:
+        uid = pwd.getpwnam(owner_name).pw_uid
+        gid = grp.getgrnam(group_name).gr_gid
+        return uid, gid
+    except KeyError as e:
+        logger.debug(f'Не удалось получить UID и GID для {owner_name} и {group_name}. Ошибка: {e}')
+        return None, None

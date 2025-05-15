@@ -21,6 +21,9 @@ def move_images(
     volume_from: int,
     volume_to: int,
     move_older_days: int,
+    uid: int,
+    gid: int,
+    dir_not_found: str,
 ):
     makstor_repository = MakstorRepository(db_connector)
 
@@ -103,7 +106,22 @@ def move_images(
                     image = makstor_repository.get_image_by_uid(image_uid)
                     if not image:
                         logger.error(f'Не удалось найти image {d_file.path} в БД.')
+
+                        path_from = d_file.path
+                        path_to = str(os.path.join(dir_not_found, d_file.name))
+                        logger.debug(f'Перемещаю ненайденный image {path_from} -> {path_to}.')
+                        try:
+                            copy_file(path_from=path_from, path_to=path_to, uid=uid, gid=gid)
+                            remove_file(d_file.path)
+                            logger.info(f'Файл успешно перемещен: {path_from} -> {path_to}.')
+                        except CopyFileError as err:
+                            logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. '
+                                         f'Ошибка: {err}')
+                        except RemoveFileError as err:
+                            logger.error(f'Не удалось удалить изначальный файл: {path_from}. '
+                                         f'Ошибка: {err}')
                         continue
+
                     # В случае, если найден файл по uid использую отн. путь до файла из БД
                     # чтобы избежать дубликатов на целевом томе
                     is_use_image_path_from_db = True
@@ -137,7 +155,8 @@ def move_images(
             logger.debug(f'Перенос файла {path_from} -> {path_to}.')
 
             try:
-                copy_file(path_from, path_to)
+                copy_file(
+                    path_from=path_from, path_to=path_to, uid=uid, gid=gid)
                 makstor_repository.update_image(
                     image_id=image_id, share_uid=volume_to, image_path=image_rel_path)
                 logger.info(f'Файл успешно скопирован: {path_from} -> {path_to}.')

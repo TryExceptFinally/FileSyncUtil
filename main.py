@@ -7,8 +7,8 @@ from time import sleep
 from src.cases import move_images
 from src.config import Config
 from src.database import DatabaseConnector
-from src.exceptions import ConfigError
 from src.logger import configure_logging
+from src.utils import get_uid_gid
 
 main_path = os.path.dirname(__file__)
 
@@ -35,19 +35,18 @@ logger = logging.getLogger(__name__)
 if __name__ == '__main__':
     logger.info('Программа запущена.')
 
-    try:
-        _start_time = datetime.strptime(config.start_time, '%H:%M').time()
-    except ValueError as e:
-        logger.error(f'Не удалось получить время из: {config.start_time}. Нужный формат: %H:%M.')
-        raise ConfigError()
-
     while True:
-        if _start_time == datetime.now().time().replace(second=0, microsecond=0):
-            logger.info('Запущен перенос файлов.')
+        if config.start_time == datetime.now().time().replace(second=0, microsecond=0):
+            uid, gid = get_uid_gid(config.owner_name, config.group_name)
+            logger.info(f'Запущен перенос файлов '
+                        f'UID:{config.owner_name}:{uid}, GID:{config.group_name}:{gid}.')
             move_images(
                 db_connector=db_connector,
                 volume_from=config.volume_from,
                 volume_to=config.volume_to,
                 move_older_days=config.move_older_days,
+                uid=uid,
+                gid=gid,
+                dir_not_found=config.dir_not_found,
             )
         sleep(60)
