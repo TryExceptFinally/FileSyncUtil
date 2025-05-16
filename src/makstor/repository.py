@@ -25,7 +25,8 @@ class MakstorRepository:
     def get_image_by_uid(self, uid_in_file: str) -> tuple | None:
         with self.db_connector as db:
             result = db.execute(
-                f"""select image_uid, image_path from images where images_uid_in_file={uid_in_file}"""
+                f"""select image_uid, image_path from images 
+                where images_uid_in_file='{uid_in_file}'"""
             ).fetchone()
             return result
 
@@ -34,5 +35,5 @@ class MakstorRepository:
             db.execute(
                 f"""update images 
                 set share_uid={share_uid}, image_path='{image_path}' 
-                where image_uid='{image_id}'"""
+                where image_uid={image_id}"""
             )
