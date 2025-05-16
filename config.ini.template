@@ -1,0 +1,16 @@
+[Options]
+volume_from=
+volume_to=
+move_older_days=30
+start_time=00:00
+log_level=info
+owner_name=makstor
+group_name=makhaon
+dir_not_found=
+
+[Database]
+name=
+user=
+password=
+host=
+port=
