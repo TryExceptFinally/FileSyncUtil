@@ -8,7 +8,7 @@ import grp
 from datetime import datetime, timedelta
 from typing import Callable
 
-from src.exceptions import RemoveFileError, CopyFileError
+from src.exceptions import RemoveFileError, CopyFileError, RenameFileError
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +75,18 @@ def scan_directory(
     return result
 
 
+def is_empty_dir(path: str) -> bool:
+    """Проверяет пустоту директории"""
+    if next(os.scandir(path), None):
+        return False
+    return True
+
+
 def remove_file(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]):
+    """Удаляет файл/директорию"""
     try:
         os.remove(path)
     except OSError as e:
-        logger.debug(f'Не удалось удалить файл: {path}. Ошибка: {e}')
         raise RemoveFileError(e)
 
 
@@ -93,8 +100,15 @@ def copy_file(path_from: str, path_to: str, uid: int, gid: int):
         shutil.copy2(path_from, path_to)
         os.chown(path_to, uid, gid)
     except Exception as e:
-        logger.debug(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {e}')
         raise CopyFileError(e)
+
+
+def rename_file(path_from: str, path_to: str):
+    """Переименовывает файл/директорию"""
+    try:
+        os.rename(path_from, path_to)
+    except OSError as e:
+        raise RenameFileError(e)
 
 
 def get_uid_gid(owner_name: str, group_name: str) -> tuple[int | None, int | None]:

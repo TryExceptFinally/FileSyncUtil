@@ -3,14 +3,15 @@ import os
 
 from src.database import DatabaseConnector
 from src.dicom.exceptions import DicomError
-from src.exceptions import CopyFileError, DBExecuteQueryError, RemoveFileError, DBConnectError
+from src.exceptions import CopyFileError, DBExecuteQueryError, RemoveFileError, DBConnectError, RenameFileError
+from src.makstor.constants import MAKSTOR_UNREADABLE_PREFIX
 from src.makstor.repository import MakstorRepository
 from src.dicom.service import DicomService
 
 from src.utils import (
     scan_directory, matches_date_pattern,
     extract_image_id_from_name, extract_rel_path_from_abs_path,
-    copy_file, remove_file,
+    copy_file, remove_file, rename_file, is_empty_dir,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,14 +109,30 @@ def move_images(
                         logger.error(f'Не удалось найти image {d_file.path} в БД.')
 
                         path_from = d_file.path
-                        path_to = str(os.path.join(dir_not_found, d_file.name))
-                        logger.debug(f'Перемещаю ненайденный image {path_from} -> {path_to}.')
+                        path_to = str(os.path.join(
+                            dir_not_found,
+                            d_file.name,
+                        ))
+                        # Использую префикс, для корректной работы авто-добавления из папки архивом
+                        path_to_with_prefix = str(os.path.join(
+                            dir_not_found,
+                            f'{MAKSTOR_UNREADABLE_PREFIX}{d_file.name}',
+                        ))
+                        logger.debug(f'Перемещение ненайденного image '
+                                     f'{path_from} -> {path_to_with_prefix}.')
                         try:
-                            copy_file(path_from=path_from, path_to=path_to, uid=uid, gid=gid)
+                            copy_file(
+                                path_from=path_from, path_to=path_to_with_prefix, uid=uid, gid=gid)
+                            rename_file(path_to_with_prefix, path_to)
                             remove_file(d_file.path)
-                            logger.info(f'Файл успешно перемещен: {path_from} -> {path_to}.')
+                            logger.debug(f'Файл успешно перемещен: {path_from} -> {path_to}.')
                         except CopyFileError as err:
-                            logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. '
+                            logger.error(f'Не удалось скопировать файл: '
+                                         f'{path_from} -> {path_to_with_prefix}. '
+                                         f'Ошибка: {err}')
+                        except RenameFileError as err:
+                            logger.error(f'Не удалось переименовать файл: '
+                                         f'{path_to_with_prefix} -> {path_to}. '
                                          f'Ошибка: {err}')
                         except RemoveFileError as err:
                             logger.error(f'Не удалось удалить изначальный файл: {path_from}. '
@@ -129,7 +146,8 @@ def move_images(
                     logger.error(f'Не удалось получить uid из файла {d_file.name}. '
                                  f'Ошибка: {err}')
                 except (DBConnectError, DBExecuteQueryError) as err:
-                    logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
+                    logger.error(f'Не удалось выполнить запрос в БД. '
+                                 f'Ошибка: {err}')
 
             image_id = image[0]
 
@@ -159,20 +177,32 @@ def move_images(
                     path_from=path_from, path_to=path_to, uid=uid, gid=gid)
                 makstor_repository.update_image(
                     image_id=image_id, share_uid=volume_to, image_path=image_rel_path)
-                logger.info(f'Файл успешно скопирован: {path_from} -> {path_to}.')
                 num_copied_files += 1
                 remove_file(path_from)
+                logger.debug(f'Файл успешно перемещен: {path_from} -> {path_to}.')
             except CopyFileError as err:
-                logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. Ошибка: {err}')
+                logger.error(f'Не удалось скопировать файл: {path_from} -> {path_to}. '
+                             f'Ошибка: {err}')
             except (DBConnectError, DBExecuteQueryError) as err:
-                logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
+                logger.error(f'Не удалось выполнить запрос в БД. '
+                             f'Ошибка: {err}')
                 try:
                     remove_file(path_to)
                 except RemoveFileError as err:
-                    logger.error(f'Не удалось удалить скопированный файл: {path_to}. Ошибка: {err}')
+                    logger.error(f'Не удалось удалить скопированный файл: {path_to}. '
+                                 f'Ошибка: {err}')
             except RemoveFileError as err:
-                logger.error(f'Не удалось удалить изначальный файл: {path_from}. Ошибка: {err}')
+                logger.error(f'Не удалось удалить изначальный файл: {path_from}. '
+                             f'Ошибка: {err}')
                 num_not_removed_files += 1
+
+        if is_empty_dir(v_dir.path):
+            try:
+                remove_file(v_dir.path)
+                logger.info(f'Директория {v_dir.path} удалена.')
+            except RemoveFileError as err:
+                logger.error(f'Не удалось удалить пустую директорию: {v_dir.path}. '
+                             f'Ошибка: {err}')
 
         logger.info(f'Скопировано всего/Скопировано успешно/Не удалось удалить/Всего: '
                     f'{num_copied_files}/{num_copied_files - num_not_removed_files}/'
