@@ -90,15 +90,17 @@ def remove_file(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]):
         raise RemoveFileError(e)
 
 
-def copy_file(path_from: str, path_to: str, uid: int, gid: int):
+def copy_file(path_from: str, path_to: str, uid: int | None = None, gid: int | None = None):
     """Копирует файл в папку (создает если нет) и устанавливает владельца и группу"""
     path_to_dir = os.path.dirname(path_to)
     try:
         if not os.path.exists(path_to_dir) or not os.path.isdir(path_to_dir):
             os.makedirs(path_to_dir, exist_ok=True)
-            os.chown(path_to_dir, uid, gid)
         shutil.copy2(path_from, path_to)
-        os.chown(path_to, uid, gid)
+        # Если указан uid и gid ставлю владельца и группу для папки и файла
+        if uid and gid:
+            os.chown(path_to_dir, uid, gid)
+            os.chown(path_to, uid, gid)
     except Exception as e:
         raise CopyFileError(e)
 

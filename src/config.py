@@ -16,6 +16,8 @@ class ConfigData:
     move_older_days: int
     volume_from: int
     volume_to: int
+    is_dir_not_found_network: bool
+    is_volume_to_network: bool
     log_level: LogLevels
     dir_not_found: str
     owner_name: str
@@ -58,18 +60,35 @@ class Config:
 
         return ConfigData(
             # Options
-            log_level=self.config.get(ConfigSection.options, 'log_level', fallback=LogLevels.info),
-            start_time=self.get_time(ConfigSection.options, 'start_time', fallback='00:00'),
-            move_older_days=self.config.getint(ConfigSection.options, 'move_older_days', fallback=30),
-            dir_not_found=self.get_path(ConfigSection.options, 'dir_not_found'),
-            volume_from=self.config.getint(ConfigSection.options, 'volume_from'),
-            volume_to=self.config.getint(ConfigSection.options, 'volume_to'),
-            owner_name=self.config.get(ConfigSection.options, 'owner_name', fallback='makstor'),
-            group_name=self.config.get(ConfigSection.options, 'group_name', fallback='makhaon'),
+            log_level=self.config.get(
+                ConfigSection.options, 'log_level', fallback=LogLevels.info),
+            start_time=self.get_time(
+                ConfigSection.options, 'start_time', fallback='00:00'),
+            move_older_days=self.config.getint(
+                ConfigSection.options, 'move_older_days', fallback=30),
+            dir_not_found=self.get_path(
+                ConfigSection.options, 'dir_not_found'),
+            volume_from=self.config.getint(
+                ConfigSection.options, 'volume_from'),
+            volume_to=self.config.getint(
+                ConfigSection.options, 'volume_to'),
+            is_dir_not_found_network=self.config.getboolean(
+                ConfigSection.options, 'is_dir_not_found_network', fallback=False),
+            is_volume_to_network=self.config.getboolean(
+                ConfigSection.options, 'is_volume_to_network', fallback=False),
+            owner_name=self.config.get(
+                ConfigSection.options, 'owner_name', fallback='makstor'),
+            group_name=self.config.get(
+                ConfigSection.options, 'group_name', fallback='makhaon'),
             # Database
-            db_name=self.config.get(ConfigSection.database, 'name'),
-            db_user=self.config.get(ConfigSection.database, 'user'),
-            db_password=self.config.get(ConfigSection.database, 'password'),
-            db_host=self.config.get(ConfigSection.database, 'host'),
-            db_port=self.config.getint(ConfigSection.database, 'port'),
+            db_name=self.config.get(
+                ConfigSection.database, 'name'),
+            db_user=self.config.get(
+                ConfigSection.database, 'user'),
+            db_password=self.config.get(
+                ConfigSection.database, 'password'),
+            db_host=self.config.get(
+                ConfigSection.database, 'host'),
+            db_port=self.config.getint(
+                ConfigSection.database, 'port'),
         )

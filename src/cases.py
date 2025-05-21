@@ -22,9 +22,11 @@ def move_images(
     volume_from: int,
     volume_to: int,
     move_older_days: int,
+    dir_not_found: str,
     uid: int,
     gid: int,
-    dir_not_found: str,
+    is_volume_to_network: bool,
+    is_dir_not_found_network: bool,
 ):
     makstor_repository = MakstorRepository(db_connector)
 
@@ -95,59 +97,72 @@ def move_images(
                     if not image:
                         logger.debug('Не удалось получить image по id из БД.')
                 except (DBConnectError, DBExecuteQueryError) as err:
-                    logger.error(f'Не удалось выполнить запрос в БД. Ошибка: {err}')
+                    logger.error(f'Не удалось выполнить запрос в БД. '
+                                 f'Ошибка: {err}')
+                    continue
             else:
                 logger.debug('Не удалось извлечь id из имени файла.')
 
             if not image:
+                logger.debug(f'Извлечение uid из файла {d_file.name}.')
                 try:
-                    logger.debug(f'Извлечение uid из файла {d_file.name}.')
                     image_uid = DicomService(d_file.path).get_image_uid()
                     logger.debug(f'Запрос image по uid={image_uid}.')
                     image = makstor_repository.get_image_by_uid(image_uid)
-                    if not image:
-                        logger.error(f'Не удалось найти image {d_file.path} в БД.')
-
-                        path_from = d_file.path
-                        path_to = str(os.path.join(
-                            dir_not_found,
-                            d_file.name,
-                        ))
-                        # Использую префикс, для корректной работы авто-добавления из папки архивом
-                        path_to_with_prefix = str(os.path.join(
-                            dir_not_found,
-                            f'{MAKSTOR_UNREADABLE_PREFIX}{d_file.name}',
-                        ))
-                        logger.debug(f'Перемещение ненайденного image '
-                                     f'{path_from} -> {path_to_with_prefix}.')
-                        try:
-                            copy_file(
-                                path_from=path_from, path_to=path_to_with_prefix, uid=uid, gid=gid)
-                            rename_file(path_to_with_prefix, path_to)
-                            remove_file(d_file.path)
-                            logger.debug(f'Файл успешно перемещен: {path_from} -> {path_to}.')
-                        except CopyFileError as err:
-                            logger.error(f'Не удалось скопировать файл: '
-                                         f'{path_from} -> {path_to_with_prefix}. '
-                                         f'Ошибка: {err}')
-                        except RenameFileError as err:
-                            logger.error(f'Не удалось переименовать файл: '
-                                         f'{path_to_with_prefix} -> {path_to}. '
-                                         f'Ошибка: {err}')
-                        except RemoveFileError as err:
-                            logger.error(f'Не удалось удалить изначальный файл: {path_from}. '
-                                         f'Ошибка: {err}')
-                        continue
-
-                    # В случае, если найден файл по uid использую отн. путь до файла из БД
-                    # чтобы избежать дубликатов на целевом томе
-                    is_use_image_path_from_db = True
                 except DicomError as err:
                     logger.error(f'Не удалось получить uid из файла {d_file.name}. '
                                  f'Ошибка: {err}')
                 except (DBConnectError, DBExecuteQueryError) as err:
                     logger.error(f'Не удалось выполнить запрос в БД. '
                                  f'Ошибка: {err}')
+
+                if not image:
+                    logger.error(f'Не удалось найти image {d_file.path} в БД.')
+
+                    path_from = d_file.path
+                    path_to = str(os.path.join(
+                        dir_not_found,
+                        d_file.name,
+                    ))
+                    # Использую префикс, для корректной работы авто-добавления из папки архивом
+                    path_to_with_prefix = str(os.path.join(
+                        dir_not_found,
+                        f'{MAKSTOR_UNREADABLE_PREFIX}{d_file.name}',
+                    ))
+                    logger.debug(f'Перемещение ненайденного image '
+                                 f'{path_from} -> {path_to_with_prefix}.')
+                    try:
+                        if is_dir_not_found_network:
+                            copy_file(
+                                path_from=path_from,
+                                path_to=path_to_with_prefix,
+                            )
+                        else:
+                            copy_file(
+                                path_from=path_from,
+                                path_to=path_to_with_prefix,
+                                uid=uid,
+                                gid=gid,
+                            )
+                        rename_file(path_to_with_prefix, path_to)
+                        remove_file(d_file.path)
+                        logger.debug(f'Файл успешно перемещен: {path_from} -> {path_to}.')
+                    except CopyFileError as err:
+                        logger.error(f'Не удалось скопировать файл: '
+                                     f'{path_from} -> {path_to_with_prefix}. '
+                                     f'Ошибка: {err}')
+                    except RenameFileError as err:
+                        logger.error(f'Не удалось переименовать файл: '
+                                     f'{path_to_with_prefix} -> {path_to}. '
+                                     f'Ошибка: {err}')
+                    except RemoveFileError as err:
+                        logger.error(f'Не удалось удалить изначальный файл: {path_from}. '
+                                     f'Ошибка: {err}')
+                    continue
+
+                # В случае, если найден файл по uid использую отн. путь до файла из БД
+                # чтобы избежать дубликатов на целевом томе
+                is_use_image_path_from_db = True
 
             image_id = image[0]
 
@@ -173,8 +188,18 @@ def move_images(
             logger.debug(f'Перенос файла {path_from} -> {path_to}.')
 
             try:
-                copy_file(
-                    path_from=path_from, path_to=path_to, uid=uid, gid=gid)
+                if is_volume_to_network:
+                    copy_file(
+                        path_from=path_from,
+                        path_to=path_to,
+                    )
+                else:
+                    copy_file(
+                        path_from=path_from,
+                        path_to=path_to,
+                        uid=uid,
+                        gid=gid,
+                    )
                 makstor_repository.update_image(
                     image_id=image_id, share_uid=volume_to, image_path=image_rel_path)
                 num_copied_files += 1

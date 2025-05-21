@@ -7,6 +7,8 @@ log_level=info
 owner_name=makstor
 group_name=makhaon
 dir_not_found=
+is_dir_not_found_network=False
+is_volume_to_network=False
 
 [Database]
 name=

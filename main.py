@@ -48,5 +48,7 @@ if __name__ == '__main__':
                 uid=uid,
                 gid=gid,
                 dir_not_found=config.dir_not_found,
+                is_volume_to_network=config.is_volume_to_network,
+                is_dir_not_found_network=config.is_dir_not_found_network,
             )
         sleep(60)
