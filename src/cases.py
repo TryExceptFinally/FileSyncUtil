@@ -3,7 +3,8 @@ import os
 
 from src.database import DatabaseConnector
 from src.dicom.exceptions import DicomError
-from src.exceptions import CopyFileError, DBExecuteQueryError, RemoveFileError, DBConnectError, RenameFileError
+from src.exceptions import CopyFileError, DBExecuteQueryError, RemoveFileError, DBConnectError, RenameFileError, \
+    RemoveDirError
 from src.makstor.constants import MAKSTOR_UNREADABLE_PREFIX
 from src.makstor.repository import MakstorRepository
 from src.dicom.service import DicomService
@@ -11,7 +12,7 @@ from src.dicom.service import DicomService
 from src.utils import (
     scan_directory, matches_date_pattern,
     extract_image_id_from_name, extract_rel_path_from_abs_path,
-    copy_file, remove_file, rename_file, is_empty_dir,
+    copy_file, remove_file, rename_file, is_empty_dir, remove_dir,
 )
 
 logger = logging.getLogger(__name__)
@@ -223,9 +224,9 @@ def move_images(
 
         if is_empty_dir(v_dir.path):
             try:
-                remove_file(v_dir.path)
+                remove_dir(v_dir.path)
                 logger.info(f'Директория {v_dir.path} удалена.')
-            except RemoveFileError as err:
+            except RemoveDirError as err:
                 logger.error(f'Не удалось удалить пустую директорию: {v_dir.path}. '
                              f'Ошибка: {err}')
 

@@ -10,6 +10,10 @@ class RemoveFileError(Exception):
     """Ошибка удаления файла"""
 
 
+class RemoveDirError(Exception):
+    """Ошибка удаления директории"""
+
+
 class RenameFileError(Exception):
     """Ошибка переименования файла"""
 

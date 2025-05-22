@@ -8,7 +8,7 @@ import grp
 from datetime import datetime, timedelta
 from typing import Callable
 
-from src.exceptions import RemoveFileError, CopyFileError, RenameFileError
+from src.exceptions import RemoveFileError, CopyFileError, RenameFileError, RemoveDirError
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,16 @@ def is_empty_dir(path: str) -> bool:
     return True
 
 
+def remove_dir(path: str):
+    """Удаляет директорию"""
+    try:
+        os.removedirs(path)
+    except OSError as e:
+        raise RemoveDirError(e)
+
+
 def remove_file(path: str | bytes | os.PathLike[str] | os.PathLike[bytes]):
-    """Удаляет файл/директорию"""
+    """Удаляет файл"""
     try:
         os.remove(path)
     except OSError as e:
