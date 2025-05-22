@@ -85,7 +85,7 @@ def is_empty_dir(path: str) -> bool:
 def remove_dir(path: str):
     """Удаляет директорию"""
     try:
-        os.removedirs(path)
+        os.rmdir(path)
     except OSError as e:
         raise RemoveDirError(e)
 
