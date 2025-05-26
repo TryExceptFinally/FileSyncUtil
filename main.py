@@ -4,8 +4,6 @@ import os
 from datetime import datetime
 from time import sleep
 
-from src.cases import move_images
-
 from src.app import FileSyncApp
 from src.config import Config
 from src.database import DatabaseConnector
