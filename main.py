@@ -5,6 +5,8 @@ from datetime import datetime
 from time import sleep
 
 from src.cases import move_images
+
+from src.app import FileSyncApp
 from src.config import Config
 from src.database import DatabaseConnector
 from src.logger import configure_logging
@@ -40,7 +42,7 @@ if __name__ == '__main__':
             uid, gid = get_uid_gid(config.owner_name, config.group_name)
             logger.info(f'Запущен перенос файлов '
                         f'UID:{config.owner_name}:{uid}, GID:{config.group_name}:{gid}.')
-            move_images(
+            FileSyncApp(
                 db_connector=db_connector,
                 volume_from=config.volume_from,
                 volume_to=config.volume_to,
@@ -50,5 +52,5 @@ if __name__ == '__main__':
                 dir_not_found=config.dir_not_found,
                 is_volume_to_network=config.is_volume_to_network,
                 is_dir_not_found_network=config.is_dir_not_found_network,
-            )
+            ).run()
         sleep(60)
